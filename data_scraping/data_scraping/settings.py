@@ -14,6 +14,17 @@ NEWSPIDER_MODULE = "data_scraping.spiders"
 
 LOG_LEVEL = "INFO"
 
+FEEDS = {
+    'output/debate_data.csv': {
+        'format': 'csv',
+        'encoding': 'utf8',
+        'overwrite': True,
+    },
+}
+
+
+FEED_EXPORT_FIELDS = ['team_id', 'team_url', 'team_name',]
+
 ADDONS = {}
 
 

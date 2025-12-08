@@ -34,6 +34,11 @@ class GreyboxSpider(Spider):
             name = team.xpath("./text()").get()
             team_url = team.xpath("./@href").get()
             team_id = int(team_url.split("tym_id=")[1])
+            yield {
+                'team_id': team_id,
+                'team_url': team_url,
+                'team_name': name,
+            }
             self.teams_dict[team_id]=name
         yield Request(
             url = "https://statistiky.debatovani.cz/?page=souteze",
