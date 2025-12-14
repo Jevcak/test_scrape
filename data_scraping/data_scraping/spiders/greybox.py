@@ -3,74 +3,80 @@ from scrapy import Spider, Request
 class GreyboxSpider(Spider):
     name = "greybox"
     teams_dict = {}
-    async def start(self):
-        url = "https://statistiky.debatovani.cz/?page=tymy"
+
+    def start_requests(self):
         yield Request(
-            url=url,
+            url="https://statistiky.debatovani.cz/?page=tymy",
             callback=self.parse,
-            # headers = {
-            #     'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-            #     'accept-language': 'cs-CZ,cs;q=0.9,en;q=0.8,de;q=0.7',
-            #     'cache-control': 'no-cache',
-            #     'pragma': 'no-cache',
-            #     'priority': 'u=0, i',
-            #     'referer': 'https://statistiky.debatovani.cz/',
-            #     'sec-ch-ua': '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
-            #     'sec-ch-ua-mobile': '?0',
-            #     'sec-ch-ua-platform': '"Windows"',
-            #     'sec-fetch-dest': 'document',
-            #     'sec-fetch-mode': 'navigate',
-            #     'sec-fetch-site': 'same-origin',
-            #     'sec-fetch-user': '?1',
-            #     'upgrade-insecure-requests': '1',
-            #     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
-            #     # 'cookie': 'PHPSESSID=frh05lfdlc7u6raocp43bnp9vr',
-            # },
         )
 
-    async def parse(self, response):
+    def parse(self, response):
         data = response.xpath("//tr/td/a[contains(@href, 'page=tym')]")
+
         for team in data:
             name = team.xpath("./text()").get()
-            team_url = team.xpath("./@href").get()
+            team_url = response.urljoin(team.xpath("./@href").get())
             team_id = int(team_url.split("tym_id=")[1])
+
             yield {
-                'team_id': team_id,
-                'team_url': team_url,
-                'team_name': name,
+                "type": "team",
+                "team_id": team_id,
+                "team_name": name,
+                "team_url": team_url,
             }
-            self.teams_dict[team_id]=name
+
+            self.teams_dict[team_id] = name
+
         yield Request(
-            url = "https://statistiky.debatovani.cz/?page=souteze",
+            url="https://statistiky.debatovani.cz/?page=souteze",
             callback=self.parseCompetition,
-            headers = {
-                'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                'accept-language': 'cs-CZ,cs;q=0.9,en;q=0.8,de;q=0.7',
-                'cache-control': 'no-cache',
-                'pragma': 'no-cache',
-                'priority': 'u=0, i',
-                'referer': 'https://statistiky.debatovani.cz/?page=tymy',
-                'sec-ch-ua': '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
-                'sec-ch-ua-mobile': '?0',
-                'sec-ch-ua-platform': '"Windows"',
-                'sec-fetch-dest': 'document',
-                'sec-fetch-mode': 'navigate',
-                'sec-fetch-site': 'same-origin',
-                'sec-fetch-user': '?1',
-                'upgrade-insecure-requests': '1',
-                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
-                # 'cookie': 'PHPSESSID=frh05lfdlc7u6raocp43bnp9vr',
-            },
         )
+
     def parseCompetition(self, response):
-        data = response.xpath("//tr/td/a[contains(@href, 'page=soutez') or contains(@href, 'page=liga')]")
+        data = response.xpath(
+            "//tr/td/a[contains(@href, 'page=soutez') or contains(@href, 'page=liga')]"
+        )
+
         for comp in data:
-            comp_url = comp.xpath("./@href").get()
-            # TODO: tady request pres vsechny ligy/souteze
+            comp_name = comp.xpath("./text()").get()
+            comp_url = response.urljoin(comp.xpath("./@href").get())
+
+            yield {
+                "type": "competition",
+                "competition_name": comp_name,
+                "competition_url": comp_url,
+            }
+
         yield Request(
             url="https://statistiky.debatovani.cz/?page=debaty",
             callback=self.parseDebates,
         )
-        pass
+
     def parseDebates(self, response):
-        print('Debates')
+        debates = response.xpath("//tr[td/a[contains(text(), 'více')]]")
+
+        for d in debates:
+            more_url = response.urljoin(
+                d.xpath(".//a[contains(text(), 'více')]/@href").get()
+            )
+
+            yield Request(
+                url=more_url,
+                callback=self.parseDebateDetail,
+            )
+
+        next_page = response.xpath("//a[contains(text(), 'Další')]/@href").get()
+        if next_page:
+            yield Request(
+                url=response.urljoin(next_page),
+                callback=self.parseDebates,
+            )
+
+    def parseDebateDetail(self, response):
+        yield {
+            "type": "debate",
+            "debate_url": response.url,
+            "date": response.xpath("//td[text()='Datum']/following-sibling::td/text()").get(),
+            "motion": response.xpath("//td[text()='Téma']/following-sibling::td/text()").get(),
+            "teams": response.xpath("//table//tr/td/text()").getall(),
+        }
