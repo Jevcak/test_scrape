@@ -23,7 +23,7 @@ FEEDS = {
 }
 
 
-FEED_EXPORT_FIELDS = ['team_id', 'team_url', 'team_name',]
+FEED_EXPORT_FIELDS = ['type', 'id', 'url', 'name','date','motion','teams']
 
 ADDONS = {}
 

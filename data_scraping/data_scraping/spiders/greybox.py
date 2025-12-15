@@ -20,9 +20,9 @@ class GreyboxSpider(Spider):
 
             yield {
                 "type": "team",
-                "team_id": team_id,
-                "team_name": name,
-                "team_url": team_url,
+                "id": team_id,
+                "name": name,
+                "url": team_url,
             }
 
             self.teams_dict[team_id] = name
@@ -36,15 +36,16 @@ class GreyboxSpider(Spider):
         data = response.xpath(
             "//tr/td/a[contains(@href, 'page=soutez') or contains(@href, 'page=liga')]"
         )
-
+        # TODO:
+        # u kazdeho yieldu bych si vyparsoval i id souteze, jako je to u tymu
         for comp in data:
             comp_name = comp.xpath("./text()").get()
             comp_url = response.urljoin(comp.xpath("./@href").get())
 
             yield {
                 "type": "competition",
-                "competition_name": comp_name,
-                "competition_url": comp_url,
+                "name": comp_name,
+                "url": comp_url,
             }
 
         yield Request(
@@ -54,10 +55,11 @@ class GreyboxSpider(Spider):
 
     def parseDebates(self, response):
         debates = response.xpath("//tr[td/a[contains(text(), 'více')]]")
-
+        # tohle nevypada dobre ale fungovat to asi bude
         for d in debates:
             more_url = response.urljoin(
                 d.xpath(".//a[contains(text(), 'více')]/@href").get()
+                # tohle by snad melo fungovat
             )
 
             yield Request(
@@ -66,6 +68,8 @@ class GreyboxSpider(Spider):
             )
 
         next_page = response.xpath("//a[contains(text(), 'Další')]/@href").get()
+        # kde si nasel nejakou next page
+        # tady zadny nextpage neni https://statistiky.debatovani.cz/?page=debaty
         if next_page:
             yield Request(
                 url=response.urljoin(next_page),
@@ -75,8 +79,15 @@ class GreyboxSpider(Spider):
     def parseDebateDetail(self, response):
         yield {
             "type": "debate",
-            "debate_url": response.url,
+            "url": response.url,
             "date": response.xpath("//td[text()='Datum']/following-sibling::td/text()").get(),
             "motion": response.xpath("//td[text()='Téma']/following-sibling::td/text()").get(),
             "teams": response.xpath("//table//tr/td/text()").getall(),
+            # TODO:
+            # asi by mi prislo rozumejsi brat ids teamu nez nazvy, 
+            # navic ten xpath se mi zda ze bere vsechny polozky v tabulce,
+            # nejen nazev teamu, kdyz se podivas co vsechno v ty tabulce splnuje 
+            # ten tvuj xpath> view-source:https://statistiky.debatovani.cz/?page=debata&debata_id=11370
+            # zrovna v tomhle linku ti nebude fungovat ani tema, datum, 
+            # takze to chce najit jinej filtr
         }
